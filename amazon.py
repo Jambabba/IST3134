@@ -1,7 +1,6 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import udf, col, lower, regexp_replace, concat_ws
-from pyspark.sql.types import StringType
-from pyspark.sql.types import ArrayType
+from pyspark.sql.types import StringType, ArrayType
 from pyspark.ml.feature import Tokenizer
 from nltk.stem.porter import PorterStemmer
 import re
@@ -45,6 +44,9 @@ df = df.withColumn("reviews", regexp_replace(col("reviews"), r'[^A-Za-zÀ-ú ]+'
 df = df.withColumn("reviews", regexp_replace(col("reviews"), 'book|one', ''))
 df = df.withColumn("reviews", regexp_replace(col("reviews"), r'\s+', ' '))
 
+#filter out null values in reviews
+df = df.filter(df.reviews.isNotNull())
+
 # Tokenize words
 tokenizer = Tokenizer(inputCol="reviews", outputCol="words")
 df = tokenizer.transform(df)
@@ -52,10 +54,19 @@ df = tokenizer.transform(df)
 # Clean text
 df = df.withColumn("clean_reviews", clean_text_udf(col("words")))
 
+#drop column word
+df = df.drop("words")
+
 # join word into a string
 df = df.withColumn("clean_reviews", concat_ws(" ", col("clean_reviews")))
 
+# remove reviews
+df = df.drop("reviews")
+
 # Save normalized data
 df.write.mode('overwrite').csv("hdfs://master:9000/user/hadoop/clean_data.csv", header = True)
+
+#show few outputs
+df.show(20, truncate=False)
 
 spark.stop()
