@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import udf, col, lower, regexp_replace
+from pyspark.sql.functions import udf, col, lower, regexp_replace, concat_ws
 from pyspark.sql.types import StringType
 from pyspark.sql.types import ArrayType
 from pyspark.ml.feature import Tokenizer
@@ -51,6 +51,9 @@ df = tokenizer.transform(df)
 
 # Clean text
 df = df.withColumn("clean_reviews", clean_text_udf(col("words")))
+
+# join word into a string
+df = df.withColumn("clean_reviews", concat_ws(" ", col("clean_reviews")))
 
 # Save normalized data
 df.write.mode('overwrite').csv("hdfs://master:9000/user/hadoop/clean_data.csv", header = True)
