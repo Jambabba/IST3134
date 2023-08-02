@@ -1,67 +1,57 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import udf, col
+from pyspark.sql.functions import udf, col, lower, regexp_replace
 from pyspark.sql.types import StringType
+from pyspark.ml.feature import Tokenizer
 from nltk.stem.porter import PorterStemmer
 import re
 import nltk
-from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 
-#Create spark session
+# Create Spark session
 spark = SparkSession.builder.appName("AmazonNormalize").getOrCreate()
 
-# download nltk
+# Download nltk
 nltk.download('stopwords')
-nltk.download('punkt')
-
 stop_words = set(stopwords.words('english'))
 
-# clean the text data
-def clean_text (text):
-    if text is None:
-        return None
-    # lowercase text
-    text = text.lower()
-  
-    # remove punctuation
-    text = re.sub(r'[^\w\s]', '', text)
-  
-    # remove special characters
-    text = re.sub(r'[^A-Za-zÀ-ú ]+', '', text)
-    text = re.sub('book|one', '', text)
-  
-    # Remove extra whitespace
-    text = re.sub(r'\s+', ' ', text).strip()
-  
-    # tokenized words and remove stop words 
-    words = [word for word in word_tokenize(text) if word not in stop_words]
-  
-    #stemming
+# Clean the text data
+def clean_text (words):
+    # Remove stop words
+    words = [word for word in words if word not in stop_words]
+    # Stemming
     porter = PorterStemmer()
-    text = " ".join([porter.stem(word) for word in words])
-    return text
+    words = [porter.stem(word) for word in words]
+    return words
 
 clean_text_udf = udf(clean_text, StringType())
 
-# load data
+# Load data
 df = spark.read.csv("hdfs://master:9000/user/hadoop/amazon_review_polarity_csv/train.csv")
 
-# renaming columns
+# Renaming columns
 df = df.withColumnRenamed("_c0", "sentiment").withColumnRenamed("_c1", "title").withColumnRenamed("_c2", "reviews")
 
-# filter only negative sentiment review
+# Filter only negative sentiment review
 df = df.filter(df.sentiment == 1)
 
-# drop columns 
+# Drop columns 
 df = df.drop("sentiment", "title")
 
-# Drop nul values
-df = df.dropna(subset = 'reviews')
+# Lowercase text, remove punctuation and special characters
+df = df.withColumn("reviews", lower(col("reviews")))
+df = df.withColumn("reviews", regexp_replace(col("reviews"), r'[^\w\s]', ''))
+df = df.withColumn("reviews", regexp_replace(col("reviews"), r'[^A-Za-zÀ-ú ]+', ''))
+df = df.withColumn("reviews", regexp_replace(col("reviews"), 'book|one', ''))
+df = df.withColumn("reviews", regexp_replace(col("reviews"), r'\s+', ' '))
 
-# clean text
-df = df.withColumn("clean_reviews", clean_text_udf(col("reviews")))
+# Tokenize words
+tokenizer = Tokenizer(inputCol="reviews", outputCol="words")
+df = tokenizer.transform(df)
 
-# save normalized data
-df.write.csv("hdfs://master:9000/user/hadoop/clean_reviews.csv", header = True)
+# Clean text
+df = df.withColumn("clean_reviews", clean_text_udf(col("words")))
+
+# Save normalized data
+df.write.mode('overwrite').csv("hdfs://master:9000/user/hadoop/clean_data.csv", header = True)
 
 spark.stop()
