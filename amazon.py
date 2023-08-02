@@ -1,6 +1,7 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import udf, col, lower, regexp_replace
 from pyspark.sql.types import StringType
+from pyspark.sql.types import ArrayType
 from pyspark.ml.feature import Tokenizer
 from nltk.stem.porter import PorterStemmer
 import re
@@ -15,7 +16,7 @@ nltk.download('stopwords')
 stop_words = set(stopwords.words('english'))
 
 # Clean the text data
-def clean_text (words):
+def clean_text(words):
     # Remove stop words
     words = [word for word in words if word not in stop_words]
     # Stemming
@@ -23,7 +24,7 @@ def clean_text (words):
     words = [porter.stem(word) for word in words]
     return words
 
-clean_text_udf = udf(clean_text, StringType())
+clean_text_udf = udf(clean_text, ArrayType(StringType()))
 
 # Load data
 df = spark.read.csv("hdfs://master:9000/user/hadoop/amazon_review_polarity_csv/train.csv")
