@@ -3,11 +3,8 @@
 import sys
 
 for line in sys.stdin:
-        # remove whitespaces
-        line = line.strip()
-        # split line into words
-        words = line.split(',')
-        # map counter
-        for word in words:
-                print(f"{word}\t1")
+    line = line.strip()
+    words = line.split()
+    for word in words:
+        print('%s\t%s' % (word, 1))
 
